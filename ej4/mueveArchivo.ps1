@@ -7,47 +7,24 @@
         ./ej4.ps1 
 #>
 
+################### COMIENZO VALIDACIONES #####################
+
 [CmdletBinding()]
 Param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $true, ParameterSetName="moverArchivos")]
     [ValidateScript({Test-Path $_})]
-    [String]$descargas,
-    [Parameter(Mandatory = $false)]
+    [String]$Descargas,
+    [Parameter(Mandatory = $false, ParameterSetName="moverArchivos")]
     [ValidateScript({Test-Path -Path $_})]
-    [String]$directorioDestino
+    [String]$Destino= (xdg-user-dir DOWNLOAD),
+    [Parameter(Mandatory= $true, ParameterSetName="iniciarApagar")]
+    [Switch]$Detener
 )
 
-$fw = New-Object System.IO.FileSystemWatcher;
-$descargas
-$fw.Path = "." #(Resolve-Path $descargas).Path;
-$fw.EnableRaisingEvents = $true;
+###################### FIN VALIDACIONES #######################
 
-$moverArchivo = {
-    #moverArchivo -archivo (Get-Item $evento.SourceArgs.FullPath -Force);
-    $archivo = Get-Item $evento.SourceArgs.FullPath -Force
-    $extension = ($archivo.Extension | Select-String -Pattern '(?<=\.)(.+)' -All).Matches.value
-    $path = Join-Path -Path $directorioDestino ""
-
-    Write-Host prueba $archivo.Basename $archivo.Extension prueba
-    if(($archivo.Basename -ne "") -and ($archivo.Extension -ne ""))
-    {
-        New-Item -Path $path -Name $extension.ToUpper() -ItemType "directory" -Force
-        $path = $path+$extension.ToUpper()
-    }
-    $existeArchivo = $path + "/" +$archivo.Name
-    $existeArchivo
-    if(Test-Path -LiteralPath $existeArchivo)
-    {
-        $archivo.FullName
-        $nombreNuevo = $archivo.Basename + "_" + (Get-Random) + $archivo.Extension;
-        $archivo = Rename-Item -Path $archivo.FullName -NewName $nombreNuevo -PassThru
-    }
-    Move-Item -Path $archivo.FullName -Destination $path
-}
-
-Register-ObjectEvent -InputObject $fw -EventName Created -SourceIdentifier archivoCreado -Action $moverArchivo
-
-function moverArchivo()
+########################## FUNCIONES ##########################
+function global:moverArchivo()
 {
     [CmdletBinding()]
     param (
@@ -55,23 +32,113 @@ function moverArchivo()
         [System.IO.FileInfo]
         $archivo
     )
-    #$archivo = Get-Item $evento.SourceArgs.FullPath -Force
-    $extension = ($archivo.Extension | Select-String -Pattern '(?<=\.)(.+)' -All).Matches.value
-    $path = Join-Path -Path $directorioDestino ""
+    
+    $archivosExistentes = (Get-ChildItem $Destino -Recurse -File).FullName
+    foreach ($archivoBuscado in $archivosExistentes) {
+        if($archivoBuscado -eq $archivo.FullName)
+        {
+            return
+        }
+    }
 
-    Write-Host prueba $archivo.Basename $archivo.Extension prueba
+    $extension = ($archivo.Extension | Select-String -Pattern '(?<=\.)(.+)' -All).Matches.value
+    $path = Join-Path -Path $Destino ""
+
     if(($archivo.Basename -ne "") -and ($archivo.Extension -ne ""))
     {
-        New-Item -Path $path -Name $extension.ToUpper() -ItemType "directory" -Force
+        New-Item -Path $path -Name $extension.ToUpper() -ItemType "directory" -Force | out-null
         $path = $path+$extension.ToUpper()
     }
     $existeArchivo = $path + "/" +$archivo.Name
-    $existeArchivo
+    
     if(Test-Path -LiteralPath $existeArchivo)
     {
-        $archivo.FullName
         $nombreNuevo = $archivo.Basename + "_" + (Get-Random) + $archivo.Extension;
         $archivo = Rename-Item -Path $archivo.FullName -NewName $nombreNuevo -PassThru
     }
-    Move-Item -Path $archivo.FullName -Destination $path
+    Move-Item -Path $archivo.FullName -Destination $path | out-null
 }
+
+function moverArchivosExistentes()
+{
+    $archivos = (Get-ChildItem $descargas -File -Recurse -Force)
+
+    foreach ($archivo in $archivos) {
+        moverArchivo -archivo $archivo
+    }
+}
+
+function manejarErrores()
+{
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [String]
+        $mensaje
+    )
+
+    Write-Host "Error`n"$mensaje -ForegroundColor Red
+
+}
+
+function registrarEvento()
+{
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [System.IO.FileSystemWatcher]
+        $watcher,
+        [Parameter()]
+        $accion
+    )
+
+    try {
+        Register-ObjectEvent -InputObject $fw -EventName Created -SourceIdentifier archivoCreado -Action $accion -ErrorAction Stop | out-null
+    }
+    catch {
+        manejarErrores -mensaje "El evento para mover archivo ya fue inicializado"
+        exit 1
+    }
+
+}
+
+function detenerEjecucion()
+{
+    if($Detener.IsPresent)
+    {
+        try {
+            Unregister-Event -SourceIdentifier archivoCreado -ErrorAction Stop  
+        }
+        catch {
+            manejarErrores -mensaje "Aun no se ha inicializado el evento para mover archivos"
+            exit 1
+        }
+
+        Write-Host "Evento eliminado" -ForegroundColor Green
+        exit 0
+    }
+}
+###############################################################
+
+####################### COMIENZO MAIN #########################
+
+detenerEjecucion
+
+$global:descargas = $descargas
+$global:Destino = $Destino
+
+moverArchivosExistentes
+
+$fw = New-Object System.IO.FileSystemWatcher;
+$fw.Path = (Resolve-Path $descargas).Path;
+$fw.EnableRaisingEvents = $true;
+$fw.IncludeSubdirectories = $true;
+
+$moverArchivo = {
+    moverArchivo -archivo (Get-Item $Event.SourceArgs.FullPath -Force)
+}
+registrarEvento  -accion $moverArchivo
+
+Write-Host "`nMonitoreando directorio"(Resolve-Path($descargas)).Path"`n"
+
+#################### FIN MAIN #################################
