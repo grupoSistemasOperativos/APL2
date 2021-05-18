@@ -103,9 +103,9 @@ function validarParametros($1, $2, $3)
 #     return $nombreArchivo + "`t"+ $ruta;
 # }
 
-$global:directorio;
-$global:directorioSalida;
-$global:umbral;
+$global:directorio | Out-Null;
+$global:directorioSalida | Out-Null;
+$global:umbral | Out-Null;
 mostrarAyuda $args[0]
 asignarParametros $args
 validarParametros "$directorio" "$directorioSalida" "$umbral"
@@ -114,10 +114,14 @@ validarParametros "$directorio" "$directorioSalida" "$umbral"
 $array
 $hayRepetidos=0
 
-$array = @(Get-ChildItem -Path $directorio -Recurse -Name -File | where-object {$_.length -gt $umbral})
+$array = @(Get-ChildItem -Path $directorio -Recurse -Name -File);
 $arrayArchivos = [System.Collections.ArrayList]::new();
 for ($i=0; $i -lt $array.Count ; $i++) {
-    $arrayArchivos.Add($directorio + "\" + $array[$i]);
+    $archivo = $directorio + "\" + $array[$i];
+    $tamaño = (Get-ChildItem $archivo | % {[int]($_.length / 1kb)});
+    if($tamaño -ge $umbral) {
+        $arrayArchivos.Add($directorio + "\" + $array[$i]) | Out-Null;
+    }
 }
 
 #Write-Host $arrayArchivos;
@@ -127,13 +131,13 @@ $cantidad = $arrayArchivos.Count;
 for ($i=0; $i -lt ($cantidad-1) ; $i++) {
     $arrayInterno = [System.Collections.ArrayList]::new();
     for ($j=($i+1); $j -lt $cantidad ; $j++) {
-        $sonIguales = (Get-FileHash $arrayArchivos[$i]).Hash -eq (Get-FileHash $arrayArchivos[$j]).Hash
+        $sonIguales = (Get-FileHash $arrayArchivos[$i]).Hash -eq (Get-FileHash $arrayArchivos[$j]).Hash;
         if($sonIguales -eq "True") {
             #Write-Host $arrayArchivos[$i] es igual a $arrayArchivos[$j]
             $hayRepetidos = 1;
-            $arrayInterno.Add($arrayArchivos[$j]);
+            $arrayInterno.Add($arrayArchivos[$j]) | Out-Null;
             $archivosIgualesMap[$arrayArchivos[$i]] = $arrayInterno;
-            $arrayArchivos.Remove($arrayArchivos[$j])
+            $arrayArchivos.Remove($arrayArchivos[$j]);
             $cantidad--;
             $j--;
         }
@@ -153,7 +157,6 @@ foreach ($llave in $archivosIgualesMap.Keys) {
     $nombreArchivo = $Matches[0];
     $pathAbsoluto -match ".*(?=\\)";
     $ruta = $Matches[0];
-    Write-Host $nombreArchivo + " - " + $ruta
     $contenidoArchivo += $nombreArchivo + "`t"+ $ruta;
     foreach ($repetidos in $archivosIgualesMap[$llave]) {
         $pathAbsoluto = (Get-ChildItem $repetidos | Select-Object FullName).FullName
@@ -167,6 +170,8 @@ foreach ($llave in $archivosIgualesMap.Keys) {
 
 $dia = Get-Date -Format 'yyyyMMddHHmm'
 $nombreArchivo= "Resultado_[" + $dia + "].log"
-New-Item -Path $directorioSalida -Force -Name $nombreArchivo -ItemType "file" -Value $contenidoArchivo
+New-Item -Path $directorioSalida -Force -Name $nombreArchivo -ItemType "file" -Value $contenidoArchivo | Out-Null;
+
+Write-Host "Se ha creado el archivo " $nombreArchivo " en la ruta " $directorioSalida " con exito!"
 
 exit($hayRepetidos);
