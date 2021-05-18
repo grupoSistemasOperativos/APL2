@@ -153,16 +153,17 @@ foreach ($llave in $archivosIgualesMap.Keys) {
     }
     $comienza=0;
     $pathAbsoluto = (Get-ChildItem $llave | Select-Object FullName).FullName
-    $pathAbsoluto -match "(?<=\\).[^\\]*$";
+    $pathAbsoluto -match "(?<=\\).[^\\]*$" | Out-Null;
     $nombreArchivo = $Matches[0];
-    $pathAbsoluto -match ".*(?=\\)";
+    $pathAbsoluto -match ".*(?=\\)" | Out-Null;
     $ruta = $Matches[0];
     $contenidoArchivo += $nombreArchivo + "`t"+ $ruta;
+
     foreach ($repetidos in $archivosIgualesMap[$llave]) {
         $pathAbsoluto = (Get-ChildItem $repetidos | Select-Object FullName).FullName
-        $pathAbsoluto -match "(?<=\\).[^\\]*$";
+        $pathAbsoluto -match "(?<=\\).[^\\]*$" | Out-Null;
         $nombreArchivo = $Matches[0];
-        $pathAbsoluto -match ".*(?=\\)";
+        $pathAbsoluto -match ".*(?=\\)" | Out-Null;
         $ruta = $Matches[0];
         $contenidoArchivo += "`n"+$nombreArchivo + "`t"+ $ruta;
     }
