@@ -31,8 +31,13 @@ param(
     [ValidateScript({Test-Path $_})]
     $Notas,
     [Parameter(Mandatory=$true, ParameterSetName="json")]
-    [System.IO.FileInfo]
-    [ValidateScript({(Test-Path $_.DirectoryName) -and ($_.Extension -eq ".json")})]
+    [String]
+    [ValidateScript({
+        $ruta = ($_ | Select-String -Pattern ".*(?=\/)" -All).Matches.value
+        $extension = ($_ | Select-String -Pattern "(?<=.\w\.).+" -All).Matches.value
+
+        return (((Test-Path $ruta) -eq $true) -and ($extension -eq "json"))
+    })]
     $Salida
 )
 
@@ -166,8 +171,8 @@ $res = obtenerNotas -directorioNotas $Notas;
 
 if($res)
 {
-    $nombreArchivo = $Salida.Name
-    Write-Host `"$nombreArchivo`" "generado con exito" -ForegroundColor Green    
+    #$nombreArchivo = $Salida.Name
+    Write-Host `"$Salida`" "generado con exito" -ForegroundColor Green    
 }
 else {
     Write-Host "Archivo(s) CSV vacio(s)" -ForegroundColor Red
