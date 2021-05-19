@@ -28,9 +28,11 @@
 param(
     [Parameter(Mandatory=$true, ParameterSetName="json")]
     [String]
+    [ValidateScript({Test-Path $_})]
     $Notas,
     [Parameter(Mandatory=$true, ParameterSetName="json")]
-    [String]
+    [System.IO.FileInfo]
+    [ValidateScript({(Test-Path $_.DirectoryName) -and ($_.Extension -eq ".json")})]
     $Salida
 )
 
@@ -47,10 +49,12 @@ function obtenerNotas {
     process {
 
         $alumnos = New-Object System.Collections.ArrayList 
-        $i=0
-        foreach($archivoCsv in (Get-ChildItem $directorioNotas) ){
+        foreach($archivoCsv in (Get-ChildItem $directorioNotas | Where-Object Length -gt 0) ){
             $codMateria = ($archivoCsv.BaseName -split "_")[0]
-            $cantCampos = ((Get-Content $archivoCsv)[0] -split ",").Length
+
+            $contenido = [String[]](Get-Content $archivoCsv)
+            
+            $cantCampos = ($contenido[0] -split ",").Length
             $headers = New-Object System.Collections.ArrayList;
 
             for ($i = 0; $i -lt $cantCampos; $i++) {
@@ -87,11 +91,15 @@ function obtenerNotas {
                 }
                 
             }
-            $i
-            $i++
         }
-        
-        ConvertTo-Json -Depth 3 $alumnos | Set-Content $Salida
+        if($alumnos.Count -gt 0)
+        {
+            ConvertTo-Json -Depth 3 $alumnos | Set-Content $Salida
+            return $true;
+        }
+        else {
+            return $false
+        }
         
   
     }
@@ -129,7 +137,6 @@ class Notas{
     }
 
     [int] obtenerNota ([System.Collections.ArrayList]$arrayNotas) {
-
         $total = 0;
         foreach ($nota in $arrayNotas) {
             if($nota -eq "b"){
@@ -155,4 +162,13 @@ class Notas{
 #    }
 #}
 
-obtenerNotas -directorioNotas $Notas;
+$res = obtenerNotas -directorioNotas $Notas;
+
+if($res)
+{
+    $nombreArchivo = $Salida.Name
+    Write-Host `"$nombreArchivo`" "generado con exito" -ForegroundColor Green    
+}
+else {
+    Write-Host "Archivo(s) CSV vacio(s)" -ForegroundColor Red
+}
