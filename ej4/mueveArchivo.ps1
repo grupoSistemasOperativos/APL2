@@ -1,10 +1,27 @@
 <#
     .SYNOPSIS
         Mover archivos de una carpeta a otra.
+    
     .DESCRIPTION
-        Este script mueve archivos de un directorio a otro pasados por parametro
+        Inicia un evento que mueve los archivos de una carpeta a otra
+    
+    .PARAMETER Descargas
+        Indica directorio a monitorear.
+    
+    .PARAMETER Destino
+        Indica directorio donde se moveran los archivos
+        Si no se indica, el directorio por defecto es (xdg-user-dir DOWNLOAD)
+
+    .PARAMETER Detener
+        Permite detener el evento
+        No se puede pasar con los otros parametros
+
     .EXAMPLE
-        ./ej4.ps1 
+        ./mueveArchivo.ps1 -Descargas ../descargas/carpetaPrueba/ -DirectorioDestino ../descargas/carpetaPrueba/destino/
+    .EXAMPLE
+        ./mueveArchivo.ps1 -Descargas ../descargas/carpetaPrueba/
+    .EXAMPLE
+        ./mueveArchivo.ps1 -Detener 
 #>
 
 ################### COMIENZO VALIDACIONES #####################
