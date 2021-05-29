@@ -11,7 +11,7 @@
 [CmdletBinding()]
 param (
     [Parameter(Mandatory=$true)]
-    [ValidateScript({Test-Path $_})]
+    [ValidateScript({Test-Path $_ -PathType leaf})]
     [String]
     $in
 )

@@ -21,10 +21,10 @@
 [CmdletBinding()]
 Param(
     [Parameter(Mandatory = $true)]
-    [ValidateScript({(Test-Path $_) -and ($directorioSalida -ne $_)})]
+    [ValidateScript({(Test-Path $_ -PathType Container) -and ($directorioSalida -ne $_)})]
     [String]$directorio,
     [Parameter(Mandatory = $true)]
-    [ValidateScript({(Test-Path $_) -and ($directorio -ne $_)})]
+    [ValidateScript({(Test-Path $_ -PathType Container) -and ($directorio -ne $_)})]
     [String]$directorioSalida,
     [Parameter(Mandatory = $true)]
     [ValidateRange(0, [int]::MaxValue)]

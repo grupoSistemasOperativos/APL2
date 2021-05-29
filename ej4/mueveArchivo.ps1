@@ -29,10 +29,10 @@
 [CmdletBinding()]
 Param(
     [Parameter(Mandatory = $true, ParameterSetName="moverArchivos")]
-    [ValidateScript({Test-Path $_})]
+    [ValidateScript({Test-Path $_ -PathType Container})]
     [String]$Descargas,
     [Parameter(Mandatory = $false, ParameterSetName="moverArchivos")]
-    [ValidateScript({Test-Path -Path $_})]
+    [ValidateScript({Test-Path -Path $_ -PathType Container})]
     [String]$Destino= (xdg-user-dir DOWNLOAD),
     [Parameter(Mandatory= $true, ParameterSetName="iniciarApagar")]
     [Switch]$Detener
