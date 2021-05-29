@@ -136,7 +136,7 @@ class Papelera {
         Remove-Item -Path "Papelera/" -recurse 
     }
 
-    [void] recuperar([String] archivo)
+    [void] recuperar([String] $archivo)
     {
 
     }
