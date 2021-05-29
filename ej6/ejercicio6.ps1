@@ -24,6 +24,7 @@
     .EXAMPLE
         ./mueveArchivo.ps1 -Detener 
 #>
+
 [CmdletBinding()]
 param (
     [Parameter(Mandatory=$false,
@@ -46,96 +47,117 @@ param (
     $e
 )
 
-Add-Type -Assembly System.IO.Compression.FileSystem
 
-$directorioPapelera = $HOME+'/Papelera';
-$destino=$HOME+'\Papelera.zip';
-$listar=$HOME+'\Papelera';
+$papelera = [Papelera]::New();
+#$papelera.eliminar($archivoAEliminar)
+$papelera.listarArchivos();
+#$papelera.vaciar();
 
-
-Write-Host "Directorio de la papelera: $directorioPapelera"
-
-if ($archivoAEliminar -ne $null)
-{    
-    #Mandar el archivo a la papelera
-    $pathAbsoluto = (Get-ChildItem $archivoAEliminar | Select-Object FullName).FullName
-    $pathAbsoluto -match "(?<=/).[^/]*$" | Out-Null
-    $pathAbsoluto -match ".*(?=/)" | Out-Null
-
-    zip -m $HOME/Papelera.zip $pathAbsoluto *> /dev/null
-
-    Write-Host $archivoAEliminar.Name "eliminado" -ForegroundColor Magenta
-}
-
-if ($l -eq $true){
-    #listar los archivos de la papelera
-    Expand-Archive -Path $destino -DestinationPath $directorioPapelera *> /dev/null
-
-    $archivos = Get-ChildItem -Path $listar -Recurse  -File
-
-    if($archivos.Count -eq 0)
-    {
-        Write-Host "Papelera vacia" -ForegroundColor Green
-    }
-    else {
-        Write-Host "~~~~~~" `t`t "~~~~" -ForegroundColor Green
-        Write-Host "Nombre" `t`t "Ruta"
-        Write-Host "~~~~~~" `t`t "~~~~" -ForegroundColor Green
+class Papelera {
+    static [String]$ruta = ($HOME);
     
-        foreach ($item in $archivos) {
-            Write-Host $item.Name `t ($item.Directory |Select-String -Pattern '(?<=Papelera\/).+' -All).Matches.value
-        }
-    }
-
-    Remove-Item -Path $directorioPapelera -Recurse
-}
-if($e -eq $true)
-{
-    zip -d $HOME/Papelera.zip "*" *> /dev/null
-}
-
-if($r -ne $null)
-{
-    $archivoBuscado = $r
-    Expand-Archive -Path $destino -DestinationPath $directorioPapelera *> /dev/null
-    $archivos = Get-ChildItem -Path $listar -Recurse  -File 
-
-    [System.Collections.ArrayList] $archivoASacar = [System.Collections.ArrayList]::new();
-
-    foreach ($archivo in $archivos) {
-        if($archivo.Name -eq $archivoBuscado)
+    Papelera ()
+    {
+        if( ! (Test-Path ([Papelera]::ruta+"/Papelera.zip") -PathType leaf))
         {
-            $archivoASacar.Add($archivo) | Out-Null
+            $baseDatos = New-Item -Path ([Papelera]::ruta) -Name "papelera.papelera" -ItemType "file" -Force
+
+            $headers="nombreArchivo,rutaOriginal,nombreOriginal,extension"
+
+            $headers | Out-File -FilePath $baseDatos.FullName
+
+            Compress-Archive -Path $baseDatos.FullName -DestinationPath ([Papelera]::ruta+"/Papelera.zip")
+            Remove-Item -Path $baseDatos.FullName
         }
     }
 
-    if($archivoASacar.Count -eq 0)
+    [void] eliminar([System.IO.FileInfo] $archivo)
     {
-        Write-Host `n`"$archivoBuscado`" "no existe en la papelera"`n -ForegroundColor Red
-        exit 1 
+        $baseDatos = $this.obtenerBaseDatos()
+
+        $random = (Get-Random);
+        $rutaOriginal = $archivo.Directory;
+        $nombreOriginal = $archivo.Name;
+        $extension = $archivo.Extension;
+
+        $random.toString() + "," + $rutaOriginal + "," + $nombreOriginal + "," + $extension | Add-Content -Path $baseDatos.FullName
+
+        #$reg = [Registro]::New($random,$archivo.Directory,$archivo.Name,$archivo.Extension)
+
+        $archivo = $this.generarNombre($random,$archivo)
+        #Write-Host $reg
+        Compress-Archive -Path $archivo.FullName, $baseDatos.FullName -DestinationPath ([Papelera]::ruta+"/Papelera.zip") -Update
+        #Remove-Item -Path $archivo.FullName
     }
 
-    if($archivoASacar.Count -gt 1)
+    [System.IO.FileInfo] obtenerBaseDatos()
     {
-        $i = 1
-        foreach ($archivo in $archivoASacar) {
-            Write-Host $i "-" $archivo.Name `t ($archivo.Directory |Select-String -Pattern '(?<=Papelera\/).+' -All).Matches.value 
-            $i++
+        Expand-Archive -Path ([Papelera]::ruta+"/Papelera.zip") -PassThru
+        
+        foreach ($item in (Get-ChildItem -Path "./Papelera") ) {
+            if($item.Name -eq "papelera.papelera")
+            {
+                return $item
+            }
         }
-        $opcion = Read-Host "Seleccione una opcion"
-        $archivo = $archivoASacar[$opcion-1]
-    }
-    else {
-        $archivo = $archivoASacar[0]
+        return $null;
     }
 
-    $directorioReal = ($archivo.FullName |Select-String -Pattern '(?<=Papelera\/).+' -All).Matches.value
+    [String] generarNombre([Int32]$random,[System.IO.FileInfo]$archivo)
+    {
+        $archivo = Rename-Item -Path $archivo.FullName -NewName $random -PassThru
 
-    unzip -p $HOME/Papelera.zip $directorioReal > /$directorioReal *> /dev/null
-    zip -d $HOME/Papelera.zip $directorioReal *> /dev/null
+        return $archivo
+    }
 
-    Write-Host $archivo.Name "restaurado a su ubicacion original" -ForegroundColor Green
+    [void] listarArchivos()
+    {
+        $baseDatos = $this.obtenerBaseDatos();
 
-    Remove-Item -Path $directorioPapelera -Recurse
+        Write-Host "~~~~~~" `t`t`t "~~~~" -ForegroundColor Green
+        Write-Host "Nombre" `t`t`t "Ruta"
+        Write-Host "~~~~~~" `t`t`t "~~~~" -ForegroundColor Green
+
+        Import-Csv -Path $baseDatos.FullName | ForEach-Object {
+            Write-Host $_.nombreOriginal `t`t $_.rutaOriginal
+        }
+
+        $this.borrarTemporal()
+    }
+
+    [void] vaciar()
+    {
+        Remove-Item -Path ([Papelera]::ruta+"/Papelera.zip")
+        $this = [Papelera]::New();
+    }
+
+    [void] borrarTemporal()
+    {
+        Remove-Item -Path "Papelera/" -recurse 
+    }
+
+    [void] recuperar([String] archivo)
+    {
+
+    }
 }
-  
+
+class Registro{
+    [String] $nombreNuevo;
+    [String] $rutaOriginal;
+    [String] $nombreOriginal;
+    [String] $extension;
+
+    Registro([String]$nombreNuevo,[String]$ruta,[String]$nombre,[String]$ext)
+    {
+        $this.nombreNuevo = $nombreNuevo;
+        $this.rutaOriginal = $ruta;
+        $this.nombreOriginal = $nombre;
+        $this.extension = $ext;
+    }
+
+    [String] toString()
+    {
+        return $this.$this.rutaOriginal + "," + $this.nombreOriginal
+    }
+}
