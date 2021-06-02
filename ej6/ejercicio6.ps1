@@ -86,31 +86,19 @@ exit 0;
 class Papelera {
     static [String]$ruta = ($HOME)+"/Papelera.zip";
     static [String[]]$headers = "nombreArchivo","rutaOriginal","nombreOriginal";
-    [String]$nombrePapelera;
+    static [String]$nombrePapelera = "papelera.papalera";
     
     Papelera ()
     {
-        $this.nombrePapelera = $this.obtenerNombreBaseDatos();
         if( ! (Test-Path ([Papelera]::ruta) -PathType leaf))
         {
-            $baseDatos = New-Item -Name ($this.nombrePapelera) -ItemType "file" -Force
+            $baseDatos = New-Item -Name ([Papelera]::nombrePapelera) -ItemType "file" -Force
 
             Out-File -FilePath $baseDatos.FullName
 
             Compress-Archive -Path $baseDatos.FullName -DestinationPath ([Papelera]::ruta)
             Remove-Item -Path $baseDatos.FullName
         }
-    }
-
-    [String] obtenerNombreBaseDatos()
-    {
-        $stringAsStream = [System.IO.MemoryStream]::new()
-        $writer = [System.IO.StreamWriter]::new($stringAsStream)
-        $writer.write("papelera.papelera")
-        $writer.Flush()
-        $stringAsStream.Position = 0
-
-        return (Get-FileHash -InputStream $stringAsStream | Select-Object Hash).GetHashCode()
     }
 
     [void] eliminar([System.IO.FileInfo] $archivo)
@@ -140,7 +128,7 @@ class Papelera {
     {
         Expand-Archive -Path ([Papelera]::ruta) -PassThru
 
-        $rutaArchivo = "./Papelera/"+($this.nombrePapelera)
+        $rutaArchivo = "./Papelera/"+([Papelera]::nombrePapelera)
 
         return (Get-ChildItem -Path $rutaArchivo);
     }
