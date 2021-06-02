@@ -39,7 +39,6 @@ param (
     
     [Parameter(Mandatory=$false,ParameterSetName="param2")]
     [String]
-    #[ValidateScript({Test-Path -Path $_})]
     $r=$null,
     
     [Parameter(Mandatory=$false,ParameterSetName="param3")]
@@ -94,7 +93,6 @@ class Papelera {
         $this.nombrePapelera = $this.obtenerNombreBaseDatos();
         if( ! (Test-Path ([Papelera]::ruta) -PathType leaf))
         {
-            #Write-Host $this.nombrePapelera
             $baseDatos = New-Item -Name ($this.nombrePapelera) -ItemType "file" -Force
 
             Out-File -FilePath $baseDatos.FullName
@@ -127,12 +125,11 @@ class Papelera {
         $random = (Get-Random);
         $rutaOriginal = $archivo.Directory;
         $nombreOriginal = $archivo.Name;
-        #$extension = $archivo.Extension;
 
         $random.toString() + "," + $rutaOriginal + "," + $nombreOriginal | Add-Content -Path $baseDatos.FullName
 
         $archivo = $this.generarNombre($random,$archivo)
-        #Write-Host 123 $archivo.FullName $baseDatos.FullName
+
         Compress-Archive -Path $archivo.FullName, $baseDatos.FullName -DestinationPath ([Papelera]::ruta) -Update
         
         $this.borrarTemporal();
@@ -142,16 +139,16 @@ class Papelera {
     [System.IO.FileInfo] obtenerBaseDatos()
     {
         Expand-Archive -Path ([Papelera]::ruta) -PassThru
+
         $rutaArchivo = "./Papelera/"+($this.nombrePapelera)
-        #Write-Host $this.nombrePapelera
+
         return (Get-ChildItem -Path $rutaArchivo);
     }
 
     [System.IO.FileInfo] generarNombre([Int32]$random,[System.IO.FileInfo]$archivo)
     {
-        #Write-Host $archivo
         $archivo = (Rename-Item -Path $archivo.FullName -NewName $random -PassThru)
-        #Write-Host $archivo
+
         return $archivo
     }
 
@@ -200,8 +197,6 @@ class Papelera {
     {
         $baseDatos = $this.obtenerBaseDatos();
 
-        #Write-Host $archivo
-
         $datosCsv = Import-Csv -Header ([Papelera]::headers) -Path $baseDatos.FullName | Where-Object nombreOriginal -Like $archivo
 
         $cantidad = ($datosCsv | Measure-Object).Count
@@ -227,7 +222,6 @@ class Papelera {
             $archivoARecuperar = $datosCsv
         }
 
-        #Write-Host $archivoARecuperar
         $rutaOriginal = ($archivoARecuperar.rutaOriginal + "/" + $archivoARecuperar.nombreOriginal)
 
         if((Test-Path $rutaOriginal) -eq $true)
