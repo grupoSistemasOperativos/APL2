@@ -24,118 +24,236 @@
     .EXAMPLE
         ./mueveArchivo.ps1 -Detener 
 #>
+
 [CmdletBinding()]
 param (
     [Parameter(Mandatory=$false,
     ValueFromPipeline=$true,Position=0,ParameterSetName="param0")]
-    [ValidateScript({Test-Path -Path $_})]
-    [System.IO.FileInfo]
-    $archivoAEliminar=$null,
+    [ValidateScript({Test-Path -Path $_ -PathType Leaf })]
+    [string]
+    $archivoAEliminar="",
 
     [Parameter(Mandatory=$false,ParameterSetName="param1")]
     [Switch]
     $l,
     
     [Parameter(Mandatory=$false,ParameterSetName="param2")]
-    [System.IO.FileInfo]
-    #[ValidateScript({Test-Path -Path $_})]
+    [String]
     $r=$null,
     
     [Parameter(Mandatory=$false,ParameterSetName="param3")]
     [Switch]
     $e
 )
+$global:nombreScript = $MyInvocation.MyCommand.Name
 
-Add-Type -Assembly System.IO.Compression.FileSystem
+$papelera = [Papelera]::New();
 
-$directorioPapelera = $HOME+'/Papelera';
-$destino=$HOME+'\Papelera.zip';
-$listar=$HOME+'\Papelera';
+if($archivoAEliminar -ne "")
+{
+    try {
+        $archivoABorrar = Get-ChildItem -Path $archivoAEliminar
 
+        $papelera.eliminar($archivoABorrar)
+    }
+    catch {
+        Write-Host "Error! No puede eliminar el script de papelera!" -ForegroundColor Red
+        exit 1
+    }
 
-Write-Host "Directorio de la papelera: $directorioPapelera"
-
-if ($archivoAEliminar -ne $null)
-{    
-    #Mandar el archivo a la papelera
-    $pathAbsoluto = (Get-ChildItem $archivoAEliminar | Select-Object FullName).FullName
-    $pathAbsoluto -match "(?<=/).[^/]*$" | Out-Null
-    $pathAbsoluto -match ".*(?=/)" | Out-Null
-
-    zip -m $HOME/Papelera.zip $pathAbsoluto *> /dev/null
-
-    Write-Host $archivoAEliminar.Name "eliminado" -ForegroundColor Magenta
+    Write-Host $archivoABorrar.Name "eliminado con exito!" -ForegroundColor Green
 }
+if($l -eq $true)
+{
+    $papelera.listarArchivos();
+}
+if($r -ne "")
+{
+    $archivoRecuperado = $papelera.recuperar($r);
 
-if ($l -eq $true){
-    #listar los archivos de la papelera
-    Expand-Archive -Path $destino -DestinationPath $directorioPapelera *> /dev/null
-
-    $archivos = Get-ChildItem -Path $listar -Recurse  -File
-
-    if($archivos.Count -eq 0)
-    {
-        Write-Host "Papelera vacia" -ForegroundColor Green
-    }
-    else {
-        Write-Host "~~~~~~" `t`t "~~~~" -ForegroundColor Green
-        Write-Host "Nombre" `t`t "Ruta"
-        Write-Host "~~~~~~" `t`t "~~~~" -ForegroundColor Green
-    
-        foreach ($item in $archivos) {
-            Write-Host $item.Name `t ($item.Directory |Select-String -Pattern '(?<=Papelera\/).+' -All).Matches.value
-        }
-    }
-
-    Remove-Item -Path $directorioPapelera -Recurse
+    Write-Host $archivoRecuperado.Name "recuperado con exito en" $archivoRecuperado.Directory -ForegroundColor Green
 }
 if($e -eq $true)
 {
-    zip -d $HOME/Papelera.zip "*" *> /dev/null
+    $papelera.vaciar();
+    Write-Host "Papelera vaciada" -ForegroundColor Green
 }
 
-if($r -ne $null)
-{
-    $archivoBuscado = $r
-    Expand-Archive -Path $destino -DestinationPath $directorioPapelera *> /dev/null
-    $archivos = Get-ChildItem -Path $listar -Recurse  -File 
+exit 0;
 
-    [System.Collections.ArrayList] $archivoASacar = [System.Collections.ArrayList]::new();
+############################ CLASES ############################
 
-    foreach ($archivo in $archivos) {
-        if($archivo.Name -eq $archivoBuscado)
+class Papelera {
+    static [String]$ruta = ($HOME)+"/Papelera.zip";
+    static [String[]]$headers = "nombreArchivo","rutaOriginal","nombreOriginal";
+    static [String]$nombrePapelera = "papelera.papalera";
+    
+    Papelera ()
+    {
+        if( ! (Test-Path ([Papelera]::ruta) -PathType leaf))
         {
-            $archivoASacar.Add($archivo) | Out-Null
+            $baseDatos = New-Item -Name ([Papelera]::nombrePapelera) -ItemType "file" -Force
+
+            Out-File -FilePath $baseDatos.FullName
+
+            Compress-Archive -Path $baseDatos.FullName -DestinationPath ([Papelera]::ruta)
+            Remove-Item -Path $baseDatos.FullName
         }
     }
 
-    if($archivoASacar.Count -eq 0)
+    [void] eliminar([System.IO.FileInfo] $archivo)
     {
-        Write-Host `n`"$archivoBuscado`" "no existe en la papelera"`n -ForegroundColor Red
-        exit 1 
-    }
-
-    if($archivoASacar.Count -gt 1)
-    {
-        $i = 1
-        foreach ($archivo in $archivoASacar) {
-            Write-Host $i "-" $archivo.Name `t ($archivo.Directory |Select-String -Pattern '(?<=Papelera\/).+' -All).Matches.value 
-            $i++
+        if($archivo.FullName -eq ($PSScriptRoot+"/"+$global:nombreScript))
+        {
+            throw "Imposible eliminar"
         }
-        $opcion = Read-Host "Seleccione una opcion"
-        $archivo = $archivoASacar[$opcion-1]
+
+        $baseDatos = $this.obtenerBaseDatos()
+
+        $random = (Get-Random);
+        $rutaOriginal = $archivo.Directory;
+        $nombreOriginal = $archivo.Name;
+
+        $random.toString() + "," + $rutaOriginal + "," + $nombreOriginal | Add-Content -Path $baseDatos.FullName
+
+        $archivo = $this.generarNombre($random,$archivo)
+
+        Compress-Archive -Path $archivo.FullName, $baseDatos.FullName -DestinationPath ([Papelera]::ruta) -Update
+        
+        $this.borrarTemporal();
+        Remove-Item -Path $archivo.FullName
     }
-    else {
-        $archivo = $archivoASacar[0]
+
+    [System.IO.FileInfo] obtenerBaseDatos()
+    {
+        Expand-Archive -Path ([Papelera]::ruta) -PassThru
+
+        $rutaArchivo = "./Papelera/"+([Papelera]::nombrePapelera)
+
+        return (Get-ChildItem -Path $rutaArchivo);
     }
 
-    $directorioReal = ($archivo.FullName |Select-String -Pattern '(?<=Papelera\/).+' -All).Matches.value
+    [System.IO.FileInfo] generarNombre([Int32]$random,[System.IO.FileInfo]$archivo)
+    {
+        $archivo = (Rename-Item -Path $archivo.FullName -NewName $random -PassThru)
 
-    unzip -p $HOME/Papelera.zip $directorioReal > /$directorioReal *> /dev/null
-    zip -d $HOME/Papelera.zip $directorioReal *> /dev/null
+        return $archivo
+    }
 
-    Write-Host $archivo.Name "restaurado a su ubicacion original" -ForegroundColor Green
+    [void] listarArchivos()
+    {
+        $baseDatos = $this.obtenerBaseDatos();
+        
+        $datosCsv = Import-Csv -Header ([Papelera]::headers) -Path $baseDatos.FullName;
+        try {
+            $cantidad = ($datosCsv | Measure-Object).Count
 
-    Remove-Item -Path $directorioPapelera -Recurse
+            if($cantidad -eq 0)
+            {
+                throw "Papelera vacia";
+            }
+            Write-Host "~~~~~~" `t`t`t "~~~~" -ForegroundColor Green
+            Write-Host "Nombre" `t`t`t "Ruta"
+            Write-Host "~~~~~~" `t`t`t "~~~~" -ForegroundColor Green
+    
+            $datosCsv | ForEach-Object {
+                Write-Host $_.nombreOriginal `t`t $_.rutaOriginal
+            }
+        }
+        catch {
+            Write-Host "Papelera vacia" -ForegroundColor Red
+        }
+        finally
+        {
+            $this.borrarTemporal()
+        }
+
+    }
+
+    [void] vaciar()
+    {
+        Remove-Item -Path ([Papelera]::ruta)
+        $this = [Papelera]::New();
+    }
+
+    [void] borrarTemporal()
+    {
+        Remove-Item -Path "Papelera/" -recurse 
+    }
+
+    [System.IO.FileInfo] recuperar([String] $archivo)
+    {
+        $baseDatos = $this.obtenerBaseDatos();
+
+        $datosCsv = Import-Csv -Header ([Papelera]::headers) -Path $baseDatos.FullName | Where-Object nombreOriginal -Like $archivo
+
+        $cantidad = ($datosCsv | Measure-Object).Count
+
+        if($cantidad -eq 0)
+        {
+            Write-Host "Archivo no encontrado en papelera" -ForegroundColor Red
+            $this.borrarTemporal();
+            exit 1;
+        }
+
+        if($cantidad -gt 1 )
+        {
+            $i = 1;
+            foreach ($registro in $datosCsv) {
+                Write-Host $i "-" $registro.nombreOriginal `t $registro.rutaOriginal
+                $i++
+            }
+            $opcion = Read-Host "Seleccione una opcion"
+            $archivoARecuperar = $datosCsv[$opcion-1]
+        }
+        else {
+            $archivoARecuperar = $datosCsv
+        }
+
+        $rutaOriginal = ($archivoARecuperar.rutaOriginal + "/" + $archivoARecuperar.nombreOriginal)
+
+        if((Test-Path $rutaOriginal) -eq $true)
+        {
+            $opcion = Read-Host "Atencion! `n
+            El archivo que quiere restablecer ya existe en el directorio original `n
+            ¿ Desea sobreescribirlo ? Escriba S o N: "
+            if($opcion -eq "N")
+            {
+                $this.borrarTemporal();
+                exit 0;
+            }
+        }
+
+        $datosCsv = Import-Csv -Header ([Papelera]::headers) -Path $baseDatos.FullName | Where-Object nombreArchivo -ne $archivoARecuperar.nombreArchivo
+
+        $cantidad = ($datosCsv | Measure-Object).Count
+
+        if($cantidad -gt 0)
+        {
+            $datosCsv | ConvertTo-Csv -NoTypeInformation | Select-Object -Skip ($cantidad -gt 0 ? 1 : 0) | Set-Content -Path $baseDatos.FullName
+        }
+        else {
+            Out-File -FilePath $baseDatos.FullName
+        }
+
+        $rutaArchivo = "Papelera/" + ($archivoARecuperar.nombreArchivo);
+        $archivoRecuperado = Move-Item -Path $rutaArchivo -Destination ($archivoARecuperar.rutaOriginal + "/" + $archivoARecuperar.nombreOriginal) -Force -PassThru;
+
+        Compress-Archive -Path "Papelera/*" -DestinationPath ([Papelera]::ruta) -Force
+
+        $this.borrarTemporal();
+
+        return $archivoRecuperado;
+    }
+    
+    [boolean] buscarArchivo([String] $archivo,$datosCsv)
+    {
+        foreach ($registro in $datosCsv) {
+            if($registro.nombreOriginal -eq $archivo)
+            {
+                return $true;
+            }
+        }
+        return $false;
+    } 
 }
-  
