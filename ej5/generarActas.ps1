@@ -34,6 +34,10 @@ param(
     [String]
     [ValidateScript({
         $ruta = ($_ | Select-String -Pattern ".*(?=\/)" -All).Matches.value
+        if($ruta -eq $null )
+        {
+            $ruta = "./"
+        }
         $extension = ($_ | Select-String -Pattern "(?<=.\w\.).+" -All).Matches.value
 
         return (((Test-Path $ruta) -eq $true) -and ($extension -eq "json"))

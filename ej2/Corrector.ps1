@@ -37,6 +37,12 @@ $nombreArchivoResultado= $nombreArchivoResultado + $extension
 
 $text = get-content $pathAbsoluto 
 
+if($text.Length -eq 0)
+{
+    Write-Host archivo vacio -ForegroundColor Red
+    exit 1
+}
+
 get-content $pathAbsoluto | ForEach-Object{$_ -replace "[ ]{2,}"," " ` -replace " \.", "." ` -replace " \,", "," ` -replace " \;", ";" ` -replace " \.", "." ` -replace "\.(?=[0-9a-z])", ". " ` -replace "\,(?=[0-9a-z])", ", " ` -replace "\;(?=[0-9a-z])", "; "} | Set-Content $nombreArchivoResultado
                                          
 $contarInconsistencias = [regex]::Matches($text, "[ ]{2,}").Count + [regex]::Matches($text, " [.;,]").Count + [regex]::Matches($text, "[.;,][^ ]").Count 
